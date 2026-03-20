@@ -1,0 +1,21 @@
+{
+  "name": "passus",
+  "private": true,
+  "description": "A conversational AI agent that helps you break down goals and stay accountable",
+  "workspaces": [
+    "core",
+    "cli"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "packageManager": "npm@10.5.0",
+  "devDependencies": {
+    "turbo": "^2.4.0",
+    "prettier": "^3.5.0"
+  }
+}
