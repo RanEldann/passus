@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, date, boolean, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, date, boolean, jsonb, integer } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -33,6 +33,7 @@ export const plans = pgTable('plans', {
   goalId: uuid('goal_id')
     .notNull()
     .references(() => goals.id),
+  version: integer('version').notNull().default(1),
   description: text('description'),
   steps: jsonb('steps').$type<PlanStep[]>().notNull().default([]),
   status: text('status').notNull().default('active'),

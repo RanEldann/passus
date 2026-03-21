@@ -53,14 +53,14 @@ export function createAgentTools(db: Db, userId: string) {
 
   const adjustPlan = tool(
     async ({ planId, steps }) => {
-      const plan = await goalRepo.updatePlanSteps(planId, steps);
+      const plan = await goalRepo.adjustPlan(planId, steps);
       return JSON.stringify(plan);
     },
     {
       name: 'adjust_plan',
-      description: 'Adjust an existing plan by updating its steps. Use after a retro or when circumstances change.',
+      description: 'Adjust an existing plan by creating a new version with updated steps. The old version is preserved for history. Use after a retro or when circumstances change.',
       schema: z.object({
-        planId: z.string().describe('ID of the plan to adjust'),
+        planId: z.string().describe('ID of the current live plan to adjust'),
         steps: z.array(planStepSchema).describe('Updated list of plan steps'),
       }),
     },

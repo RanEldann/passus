@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import type { Db } from './index.js';
 import { goals, plans, checkpoints } from './schema.js';
 import type { PlanStep } from './schema.js';
@@ -42,17 +42,36 @@ export function createGoalRepository(db: Db) {
       return plan;
     },
 
-    async updatePlanSteps(planId: string, steps: PlanStep[]) {
-      const [plan] = await db
-        .update(plans)
-        .set({ steps })
-        .where(eq(plans.id, planId))
+    async adjustPlan(planId: string, steps: PlanStep[]) {
+      const current = await db.query.plans.findFirst({ where: eq(plans.id, planId) });
+      if (!current) throw new Error(`Plan ${planId} not found`);
+
+      await db.update(plans).set({ status: 'superseded' }).where(eq(plans.id, planId));
+
+      const [newPlan] = await db
+        .insert(plans)
+        .values({
+          goalId: current.goalId,
+          description: current.description,
+          steps,
+          version: current.version + 1,
+          status: 'active',
+        })
         .returning();
-      return plan;
+      return newPlan;
+    },
+
+    async getLivePlan(goalId: string) {
+      return db.query.plans.findFirst({
+        where: and(eq(plans.goalId, goalId), eq(plans.status, 'active')),
+      });
     },
 
     async getPlansByGoal(goalId: string) {
-      return db.query.plans.findMany({ where: eq(plans.goalId, goalId) });
+      return db.query.plans.findMany({
+        where: eq(plans.goalId, goalId),
+        orderBy: [desc(plans.version)],
+      });
     },
 
     async createCheckpoint(
