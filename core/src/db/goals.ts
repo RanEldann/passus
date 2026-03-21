@@ -1,4 +1,4 @@
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, lte } from 'drizzle-orm';
 import type { Db } from './index.js';
 import { goals, plans, checkpoints } from './schema.js';
 import type { PlanStep } from './schema.js';
@@ -27,6 +27,17 @@ export function createGoalRepository(db: Db) {
     },
 
     async getGoalsByUser(userId: string) {
+      const today = new Date().toISOString().split('T')[0]!;
+      await db
+        .update(goals)
+        .set({ status: 'on_track' })
+        .where(
+          and(
+            eq(goals.userId, userId),
+            eq(goals.status, 'not_started'),
+            lte(goals.startDate, today),
+          ),
+        );
       return db.query.goals.findMany({ where: eq(goals.userId, userId) });
     },
 
