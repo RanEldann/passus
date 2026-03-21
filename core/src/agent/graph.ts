@@ -17,7 +17,7 @@ Flow:
 2. You ask clarifying questions to refine it into a specific goal with a target date
 3. You propose a plan with steps at an appropriate cadence (weekly, monthly, etc. — depends on the goal)
 4. You ask for confirmation before saving anything
-5. Use tools to save the goal and plan — create the goal first, then create ONE plan with ALL steps in a single tool call
+5. Use tools to save the goal and plan — create the goal first, then create ONE plan with ALL steps in a single tool call. Each step must include startDate and endDate.
 
 The cadence of the plan depends on the goal:
 - Training goals might have weekly steps

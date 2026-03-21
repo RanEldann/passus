@@ -9,3 +9,6 @@ export { createThreadRepository } from './db/threads.js';
 export { createGoalRepository } from './db/goals.js';
 export { createAgent } from './agent/index.js';
 export type { Agent, CreateAgentOptions } from './agent/index.js';
+export { createScheduler } from './scheduler.js';
+export type { SchedulerOptions, DueCheckIn } from './scheduler.js';
+export type { Transport } from './transport.js';

@@ -7,6 +7,8 @@ const planStepSchema = z.object({
   order: z.number().describe('Step order (1, 2, 3...)'),
   title: z.string().describe('Period label (e.g. "Week 1", "Month 1", "Day 1")'),
   target: z.string().describe('What to achieve in this period'),
+  startDate: z.string().describe('Step period start date in YYYY-MM-DD format'),
+  endDate: z.string().describe('Step period end date in YYYY-MM-DD format'),
 });
 
 export function createAgentTools(db: Db, userId: string) {

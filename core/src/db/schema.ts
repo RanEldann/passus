@@ -44,6 +44,8 @@ export interface PlanStep {
   order: number;
   title: string;
   target: string;
+  startDate: string;
+  endDate: string;
 }
 
 export const checkpoints = pgTable('goal_checkpoints', {
