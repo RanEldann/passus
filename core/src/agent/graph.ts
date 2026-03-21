@@ -5,7 +5,10 @@ import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { createAgentTools } from './tools.js';
 import type { Db } from '../db/index.js';
 
-const SYSTEM_PROMPT = `You are Passus, a friendly accountability coach.
+function getSystemPrompt() {
+  const today = new Date().toISOString().split('T')[0];
+  return `You are Passus, a friendly accountability coach.
+Today's date is ${today}.
 
 Your job is to help users turn vague ambitions into specific, measurable goals with actionable plans.
 
@@ -14,7 +17,7 @@ Flow:
 2. You ask clarifying questions to refine it into a specific goal with a target date
 3. You propose a plan with steps at an appropriate cadence (weekly, monthly, etc. — depends on the goal)
 4. You ask for confirmation before saving anything
-5. Use tools to save the goal and plan
+5. Use tools to save the goal and plan — create the goal first, then create ONE plan with ALL steps in a single tool call
 
 The cadence of the plan depends on the goal:
 - Training goals might have weekly steps
@@ -27,6 +30,7 @@ When checking in on progress:
 - Adjust the plan if needed
 
 Keep responses concise. Be encouraging but practical.`;
+}
 
 export interface CreateAgentOptions {
   dbUrl: string;
@@ -41,13 +45,13 @@ export async function createAgent({ dbUrl, db, userId }: CreateAgentOptions) {
   function createModel() {
     return new ChatAnthropic({
       model: 'claude-haiku-4-5-20251001',
-      maxTokens: 1024,
+      maxTokens: 4096,
     }).bindTools(tools);
   }
 
   async function agentNode(state: typeof MessagesAnnotation.State) {
     const response = await createModel().invoke([
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: getSystemPrompt() },
       ...state.messages,
     ]);
     return { messages: [response] };

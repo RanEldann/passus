@@ -2,7 +2,7 @@
 
 import * as readline from 'node:readline';
 import { VERSION, createAgent, createDb, createUserRepository, createThreadRepository } from '@passus/core';
-import { HumanMessage } from '@langchain/core/messages';
+import { HumanMessage, type AIMessageChunk } from '@langchain/core/messages';
 
 const DB_URL = process.env.DATABASE_URL ?? 'postgresql://localhost:5432/passus';
 const CLI_USER_NAME = 'cli-user';
@@ -46,10 +46,38 @@ async function main() {
 
       try {
         const config = { configurable: { thread_id: thread.id } };
-        const result = await agent.invoke({ messages: [new HumanMessage(trimmed)] }, config);
+        const stream = agent.streamEvents(
+          { messages: [new HumanMessage(trimmed)] },
+          { ...config, version: 'v2', recursionLimit: 50 },
+        );
 
-        const lastMessage = result.messages[result.messages.length - 1];
-        console.log(`\npassus: ${lastMessage.content}\n`);
+        let isStreaming = false;
+        for await (const event of stream) {
+          if (event.event === 'on_chat_model_stream') {
+            const chunk: AIMessageChunk = event.data.chunk;
+            if (typeof chunk.content === 'string' && chunk.content) {
+              if (!isStreaming) {
+                process.stdout.write('\npassus: ');
+                isStreaming = true;
+              }
+              process.stdout.write(chunk.content);
+            }
+          } else if (event.event === 'on_tool_start') {
+            if (isStreaming) {
+              process.stdout.write('\n');
+              isStreaming = false;
+            }
+            console.log(`  [tool] ${event.name}(${JSON.stringify(event.data.input).slice(0, 200)})`);
+          } else if (event.event === 'on_tool_end') {
+            const output = event.data.output;
+            const text = typeof output === 'string' ? output : JSON.stringify(output);
+            console.log(`  [tool] ${event.name} → ${text.slice(0, 200)}`);
+          }
+        }
+        if (isStreaming) {
+          process.stdout.write('\n');
+        }
+        console.log();
       } catch (err) {
         console.error('Error:', err instanceof Error ? err.message : err);
       }
