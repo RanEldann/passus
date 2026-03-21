@@ -6,7 +6,7 @@ import postgres from 'postgres';
 const TEST_DB_URL = process.env.DATABASE_URL ?? 'postgresql://localhost:5432/passus';
 
 describe('userRepository', () => {
-  const db = createDb(TEST_DB_URL);
+  const { db, close: closeDb } = createDb(TEST_DB_URL);
   const repo = createUserRepository(db);
   const createdIds: string[] = [];
 
@@ -16,7 +16,7 @@ describe('userRepository', () => {
       await client`DELETE FROM users WHERE id = ANY(${createdIds}::uuid[])`;
       await client.end();
     }
-    await postgres(TEST_DB_URL).end();
+    await closeDb();
   });
 
   it('should create a user', async () => {

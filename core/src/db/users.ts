@@ -16,5 +16,12 @@ export function createUserRepository(db: Db) {
     async findAll() {
       return db.query.users.findMany();
     },
+
+    async findOrCreate(name: string) {
+      const existing = await db.query.users.findFirst({ where: eq(users.name, name) });
+      if (existing) return existing;
+      const [user] = await db.insert(users).values({ name }).returning();
+      return user;
+    },
   };
 }
