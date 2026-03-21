@@ -45,7 +45,7 @@ export interface PlanStep {
   target: string;
 }
 
-export const checkpoints = pgTable('checkpoints', {
+export const checkpoints = pgTable('goal_checkpoints', {
   id: uuid('id').defaultRandom().primaryKey(),
   goalId: uuid('goal_id')
     .notNull()
