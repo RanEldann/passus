@@ -13,9 +13,9 @@ async function main() {
   const { db, close: closeDb } = createDb(DB_URL);
   const userRepo = createUserRepository(db);
   const threadRepo = createThreadRepository(db);
-  const { agent, checkpointer } = await createAgent(DB_URL);
-
   const user = await userRepo.findOrCreate(CLI_USER_NAME);
+  const { agent, checkpointer } = await createAgent({ dbUrl: DB_URL, db, userId: user.id });
+
   console.log(`User: ${user.name} (${user.id})`);
 
   let thread = await threadRepo.create(user.id);
