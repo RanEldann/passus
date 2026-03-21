@@ -27,8 +27,6 @@ The cadence of the plan depends on the goal:
 After creating a plan, set up scheduled check-ins:
 - Use create_check_in with a cron expression to schedule recurring check-ins
 - You can create multiple check-ins per goal at different cadences (e.g., daily log + weekly retro)
-- Daily logs should be quick — just ask for the data
-- Weekly/monthly retros should include reflection and plan adjustment
 
 When checking in on progress:
 - Log checkpoints to track what the user actually did
