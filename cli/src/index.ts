@@ -110,7 +110,7 @@ async function main() {
 
   const scheduler = createScheduler({
     db,
-    agent,
+    resolveAgent: async () => agent,
     transport: consoleTransport,
     onCheckInStarted(_userId: string, threadId: string) {
       thread = { id: threadId, userId: user.id, createdAt: new Date() };

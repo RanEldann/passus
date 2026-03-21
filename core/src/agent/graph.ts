@@ -40,9 +40,10 @@ export interface CreateAgentOptions {
   dbUrl: string;
   db: Db;
   userId: string;
+  checkpointer?: PostgresSaver;
 }
 
-export async function createAgent({ dbUrl, db, userId }: CreateAgentOptions) {
+export async function createAgent({ dbUrl, db, userId, checkpointer: existingCheckpointer }: CreateAgentOptions) {
   const tools = createAgentTools(db, userId);
   const toolNode = new ToolNode(tools);
 
@@ -80,8 +81,8 @@ export async function createAgent({ dbUrl, db, userId }: CreateAgentOptions) {
     .addConditionalEdges('agent', shouldContinue, ['tools', END])
     .addEdge('tools', 'agent');
 
-  const checkpointer = PostgresSaver.fromConnString(dbUrl);
-  await checkpointer.setup();
+  const checkpointer = existingCheckpointer ?? PostgresSaver.fromConnString(dbUrl);
+  if (!existingCheckpointer) await checkpointer.setup();
 
   const agent = workflow.compile({ checkpointer });
   return { agent, checkpointer };

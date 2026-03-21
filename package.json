@@ -4,7 +4,8 @@
   "description": "A conversational AI agent that helps you break down goals and stay accountable",
   "workspaces": [
     "core",
-    "cli"
+    "cli",
+    "telegram"
   ],
   "scripts": {
     "build": "turbo run build",

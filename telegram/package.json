@@ -1,0 +1,25 @@
+{
+  "name": "@passus/telegram",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "grammy": "^1.35.0",
+    "@langchain/core": "^1.1.34",
+    "@langchain/langgraph-checkpoint-postgres": "^1.0.1",
+    "@passus/core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.0.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

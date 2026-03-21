@@ -10,12 +10,12 @@ import type { Transport } from './transport.js';
 
 export interface SchedulerOptions {
   db: Db;
-  agent: Agent;
+  resolveAgent: (userId: string) => Promise<Agent>;
   transport: Transport;
   onCheckInStarted?: (userId: string, threadId: string) => void;
 }
 
-export function createScheduler({ db, agent, transport, onCheckInStarted }: SchedulerOptions) {
+export function createScheduler({ db, resolveAgent, transport, onCheckInStarted }: SchedulerOptions) {
   const checkInRepo = createCheckInRepository(db);
   const threadRepo = createThreadRepository(db);
   const jobs = new Map<string, cron.ScheduledTask>();
@@ -25,6 +25,7 @@ export function createScheduler({ db, agent, transport, onCheckInStarted }: Sche
     if (!goal) return;
 
     const thread = await threadRepo.create(goal.userId);
+    const agent = await resolveAgent(goal.userId);
 
     const prompt =
       `[CHECK-IN: ${purpose}] ` +
@@ -77,6 +78,7 @@ export function createScheduler({ db, agent, transport, onCheckInStarted }: Sche
     if (task) {
       task.stop();
       jobs.delete(checkInId);
+      console.log(`[scheduler] Unregistered check-in: ${checkInId}`);
     }
   }
 

@@ -18,6 +18,7 @@ export function createAgentTools(db: Db, userId: string) {
 
   const createGoal = tool(
     async ({ title, description, startDate, targetDate }) => {
+      console.log(`[tool] create_goal(${JSON.stringify({ title, description, startDate, targetDate })})`);
       const goal = await goalRepo.createGoal(userId, title, {
         description,
         startDate,
@@ -40,6 +41,7 @@ export function createAgentTools(db: Db, userId: string) {
 
   const createPlan = tool(
     async ({ goalId, description, steps }) => {
+      console.log(`[tool] create_plan(${JSON.stringify({ goalId, description, steps })})`);
       const plan = await goalRepo.createPlan(goalId, description, steps);
       return JSON.stringify(plan);
     },
@@ -57,6 +59,7 @@ export function createAgentTools(db: Db, userId: string) {
 
   const adjustPlan = tool(
     async ({ planId, steps }) => {
+      console.log(`[tool] adjust_plan(${JSON.stringify({ planId, steps })})`);
       const plan = await goalRepo.adjustPlan(planId, steps);
       return JSON.stringify(plan);
     },
@@ -73,6 +76,7 @@ export function createAgentTools(db: Db, userId: string) {
 
   const updateGoalStatus = tool(
     async ({ goalId, status }) => {
+      console.log(`[tool] update_goal_status(${JSON.stringify({ goalId, status })})`);
       const goal = await goalRepo.updateGoalStatus(goalId, status);
       return JSON.stringify(goal);
     },
@@ -90,6 +94,7 @@ export function createAgentTools(db: Db, userId: string) {
 
   const getGoals = tool(
     async () => {
+      console.log(`[tool] get_goals(${JSON.stringify({})})`);
       const userGoals = await goalRepo.getGoalsByUser(userId);
       if (userGoals.length === 0) return 'No goals yet.';
       const fullGoals = await Promise.all(
@@ -106,6 +111,7 @@ export function createAgentTools(db: Db, userId: string) {
 
   const logCheckpoint = tool(
     async ({ goalId, periodStart, periodEnd, status, data }) => {
+      console.log(`[tool] log_checkpoint(${JSON.stringify({ goalId, periodStart, periodEnd, status, data })})`);
       const checkpoint = await goalRepo.createCheckpoint(
         goalId,
         periodStart,
@@ -136,6 +142,7 @@ export function createAgentTools(db: Db, userId: string) {
 
   const createCheckIn = tool(
     async ({ goalId, schedule, purpose, hint }) => {
+      console.log(`[tool] create_check_in(${JSON.stringify({ goalId, schedule, purpose, hint })})`);
       const checkIn = await checkInRepo.create(goalId, schedule, purpose, hint);
       return JSON.stringify(checkIn);
     },
@@ -164,6 +171,7 @@ export function createAgentTools(db: Db, userId: string) {
 
   const listCheckIns = tool(
     async ({ goalId }) => {
+      console.log(`[tool] list_check_ins(${JSON.stringify({ goalId })})`);
       const checkIns = await checkInRepo.getByGoal(goalId);
       if (checkIns.length === 0) return 'No check-ins scheduled for this goal.';
       return JSON.stringify(checkIns, null, 2);
@@ -179,6 +187,7 @@ export function createAgentTools(db: Db, userId: string) {
 
   const updateCheckIn = tool(
     async ({ checkInId, schedule, purpose, hint, active }) => {
+      console.log(`[tool] update_check_in(${JSON.stringify({ checkInId, schedule, purpose, hint, active })})`);
       const updated = await checkInRepo.update(checkInId, { schedule, purpose, hint, active });
       return JSON.stringify(updated);
     },
@@ -197,6 +206,7 @@ export function createAgentTools(db: Db, userId: string) {
 
   const deleteCheckIn = tool(
     async ({ checkInId }) => {
+      console.log(`[tool] delete_check_in(${JSON.stringify({ checkInId })})`);
       const deleted = await checkInRepo.remove(checkInId);
       return deleted ? 'Deleted.' : 'Not found.';
     },

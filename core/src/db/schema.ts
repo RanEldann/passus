@@ -60,6 +60,16 @@ export const scheduledCheckIns = pgTable('scheduled_check_ins', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const telegramMessages = pgTable('telegram_messages', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  telegramMessageId: text('telegram_message_id').notNull(),
+  chatId: text('chat_id').notNull(),
+  threadId: uuid('thread_id')
+    .notNull()
+    .references(() => threads.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const checkpoints = pgTable('goal_checkpoints', {
   id: uuid('id').defaultRandom().primaryKey(),
   goalId: uuid('goal_id')
