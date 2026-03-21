@@ -5,7 +5,18 @@ import postgres from 'postgres';
 
 const TEST_DB_URL = process.env.DATABASE_URL ?? 'postgresql://localhost:5432/passus';
 
-describe('userRepository', () => {
+const canConnect = await (async () => {
+  try {
+    const client = postgres(TEST_DB_URL, { connect_timeout: 2 });
+    await client`SELECT 1`;
+    await client.end();
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
+describe.skipIf(!canConnect)('userRepository', () => {
   const { db, close: closeDb } = createDb(TEST_DB_URL);
   const repo = createUserRepository(db);
   const createdIds: string[] = [];
