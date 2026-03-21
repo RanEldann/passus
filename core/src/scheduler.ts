@@ -97,6 +97,20 @@ export function createScheduler({ db, agent, transport, onCheckInStarted }: Sche
       console.log('[scheduler] Stopped');
     },
 
+    async sync() {
+      const activeCheckIns = await checkInRepo.getAllActive();
+      for (const checkIn of activeCheckIns) {
+        if (!jobs.has(checkIn.id)) {
+          registerJob(checkIn);
+        }
+      }
+      for (const id of jobs.keys()) {
+        if (!activeCheckIns.find((c) => c.id === id)) {
+          unregisterJob(id);
+        }
+      }
+    },
+
     registerJob,
     unregisterJob,
   };

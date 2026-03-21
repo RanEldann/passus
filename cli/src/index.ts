@@ -186,6 +186,7 @@ async function main() {
       await sendMessage(agent, thread.id, 'I want to create a new goal.');
     }
 
+    await scheduler.sync();
     await chatLoop();
   }
 
@@ -207,6 +208,7 @@ async function main() {
 
       try {
         await sendMessage(agent, thread.id, trimmed);
+        await scheduler.sync();
       } catch (err) {
         console.error('Error:', err instanceof Error ? err.message : err);
       }
