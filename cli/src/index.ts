@@ -2,7 +2,7 @@
 
 import * as readline from 'node:readline';
 import { VERSION, createAgent, createDb, createUserRepository, createThreadRepository } from '@passus/core';
-import { HumanMessage, type AIMessageChunk } from '@langchain/core/messages';
+import { HumanMessage } from '@langchain/core/messages';
 
 const DB_URL = process.env.DATABASE_URL ?? 'postgresql://localhost:5432/passus';
 const CLI_USER_NAME = 'cli-user';
@@ -45,39 +45,38 @@ async function main() {
       }
 
       try {
-        const config = { configurable: { thread_id: thread.id } };
-        const stream = agent.streamEvents(
+        const config = { configurable: { thread_id: thread.id }, recursionLimit: 50 };
+        const stream = await agent.stream(
           { messages: [new HumanMessage(trimmed)] },
-          { ...config, version: 'v2', recursionLimit: 50 },
+          config,
         );
 
-        let isStreaming = false;
-        for await (const event of stream) {
-          if (event.event === 'on_chat_model_stream') {
-            const chunk: AIMessageChunk = event.data.chunk;
-            if (typeof chunk.content === 'string' && chunk.content) {
-              if (!isStreaming) {
-                process.stdout.write('\npassus: ');
-                isStreaming = true;
+        for await (const chunk of stream) {
+          for (const [nodeName, update] of Object.entries(chunk)) {
+            const messages = (update as { messages?: unknown[] }).messages;
+            if (!messages) continue;
+
+            for (const msg of messages) {
+              const m = msg as { content?: unknown; tool_calls?: { name: string; args: unknown }[]; name?: string };
+
+              if (nodeName === 'agent') {
+                if (m.tool_calls?.length) {
+                  for (const tc of m.tool_calls) {
+                    console.log(`  [tool] ${tc.name}(${JSON.stringify(tc.args).slice(0, 200)})`);
+                  }
+                }
+                if (typeof m.content === 'string' && m.content) {
+                  console.log(`\npassus: ${m.content}\n`);
+                }
               }
-              process.stdout.write(chunk.content);
+
+              if (nodeName === 'tools') {
+                const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+                console.log(`  [tool] ${m.name} → ${content.slice(0, 200)}`);
+              }
             }
-          } else if (event.event === 'on_tool_start') {
-            if (isStreaming) {
-              process.stdout.write('\n');
-              isStreaming = false;
-            }
-            console.log(`  [tool] ${event.name}(${JSON.stringify(event.data.input).slice(0, 200)})`);
-          } else if (event.event === 'on_tool_end') {
-            const output = event.data.output;
-            const text = typeof output === 'string' ? output : JSON.stringify(output);
-            console.log(`  [tool] ${event.name} → ${text.slice(0, 200)}`);
           }
         }
-        if (isStreaming) {
-          process.stdout.write('\n');
-        }
-        console.log();
       } catch (err) {
         console.error('Error:', err instanceof Error ? err.message : err);
       }
