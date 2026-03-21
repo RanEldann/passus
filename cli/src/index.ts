@@ -6,6 +6,7 @@ import { HumanMessage } from '@langchain/core/messages';
 
 const DB_URL = process.env.DATABASE_URL ?? 'postgresql://localhost:5432/passus';
 const CLI_USER_NAME = 'cli-user';
+const DEBUG = process.env.DEBUG === '1';
 
 async function main() {
   console.log(`passus v${VERSION}\n`);
@@ -52,6 +53,10 @@ async function main() {
         );
 
         for await (const chunk of stream) {
+          if (DEBUG) {
+            console.log('[debug] chunk:', JSON.stringify(chunk, null, 2).slice(0, 500));
+          }
+
           for (const [nodeName, update] of Object.entries(chunk)) {
             const messages = (update as { messages?: unknown[] }).messages;
             if (!messages) continue;
@@ -65,8 +70,17 @@ async function main() {
                     console.log(`  [tool] ${tc.name}(${JSON.stringify(tc.args).slice(0, 200)})`);
                   }
                 }
-                if (typeof m.content === 'string' && m.content) {
-                  console.log(`\npassus: ${m.content}\n`);
+                let text = '';
+                if (typeof m.content === 'string') {
+                  text = m.content;
+                } else if (Array.isArray(m.content)) {
+                  text = (m.content as { type: string; text?: string }[])
+                    .filter((b) => b.type === 'text' && b.text)
+                    .map((b) => b.text)
+                    .join('');
+                }
+                if (text) {
+                  console.log(`\npassus: ${text}\n`);
                 }
               }
 
