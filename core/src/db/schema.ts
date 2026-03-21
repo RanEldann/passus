@@ -36,7 +36,7 @@ export const plans = pgTable('plans', {
   version: integer('version').notNull().default(1),
   description: text('description'),
   steps: jsonb('steps').$type<PlanStep[]>().notNull().default([]),
-  status: text('status').notNull().default('active'),
+  status: text('status').notNull().default('live'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

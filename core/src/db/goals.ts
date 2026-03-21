@@ -46,7 +46,7 @@ export function createGoalRepository(db: Db) {
       const current = await db.query.plans.findFirst({ where: eq(plans.id, planId) });
       if (!current) throw new Error(`Plan ${planId} not found`);
 
-      await db.update(plans).set({ status: 'superseded' }).where(eq(plans.id, planId));
+      await db.update(plans).set({ status: 'deprecated' }).where(eq(plans.id, planId));
 
       const [newPlan] = await db
         .insert(plans)
@@ -55,7 +55,7 @@ export function createGoalRepository(db: Db) {
           description: current.description,
           steps,
           version: current.version + 1,
-          status: 'active',
+          status: 'live',
         })
         .returning();
       return newPlan;
@@ -63,7 +63,7 @@ export function createGoalRepository(db: Db) {
 
     async getLivePlan(goalId: string) {
       return db.query.plans.findFirst({
-        where: and(eq(plans.goalId, goalId), eq(plans.status, 'active')),
+        where: and(eq(plans.goalId, goalId), eq(plans.status, 'live')),
       });
     },
 
