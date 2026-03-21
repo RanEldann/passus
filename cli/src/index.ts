@@ -16,7 +16,6 @@ import { HumanMessage } from '@langchain/core/messages';
 const DB_URL = process.env.DATABASE_URL ?? 'postgresql://localhost:5432/passus';
 const CLI_USER_NAME = 'cli-user';
 const DEBUG = process.env.DEBUG === '1';
-const CHECK_INTERVAL_MS = Number(process.env.CHECK_INTERVAL_MS) || 60_000;
 
 function extractText(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -113,14 +112,13 @@ async function main() {
     db,
     agent,
     transport: consoleTransport,
-    intervalMs: CHECK_INTERVAL_MS,
     onCheckInStarted(_userId: string, threadId: string) {
       thread = { id: threadId, userId: user.id, createdAt: new Date() };
       console.log(`  [check-in] Switched to thread: ${threadId}`);
     },
   });
 
-  scheduler.start();
+  await scheduler.start();
 
   async function showGoalMenu(): Promise<void> {
     const userGoals = await goalRepo.getGoalsByUser(user.id);

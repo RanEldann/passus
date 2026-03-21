@@ -1,79 +1,35 @@
+import cron from 'node-cron';
 import { HumanMessage } from '@langchain/core/messages';
 import type { Db } from './db/index.js';
-import { createGoalRepository } from './db/goals.js';
+import { createCheckInRepository } from './db/checkins.js';
 import { createThreadRepository } from './db/threads.js';
+import { goals } from './db/schema.js';
+import { eq } from 'drizzle-orm';
 import type { Agent } from './agent/index.js';
 import type { Transport } from './transport.js';
-import type { PlanStep } from './db/schema.js';
 
 export interface SchedulerOptions {
   db: Db;
   agent: Agent;
   transport: Transport;
-  intervalMs?: number;
   onCheckInStarted?: (userId: string, threadId: string) => void;
 }
 
-export interface DueCheckIn {
-  userId: string;
-  goalId: string;
-  goalTitle: string;
-  step: PlanStep;
-}
-
-export function createScheduler({
-  db,
-  agent,
-  transport,
-  intervalMs = 60_000,
-  onCheckInStarted,
-}: SchedulerOptions) {
-  const goalRepo = createGoalRepository(db);
+export function createScheduler({ db, agent, transport, onCheckInStarted }: SchedulerOptions) {
+  const checkInRepo = createCheckInRepository(db);
   const threadRepo = createThreadRepository(db);
-  let timer: ReturnType<typeof setInterval> | null = null;
+  const jobs = new Map<string, cron.ScheduledTask>();
 
-  async function findDueCheckIns(): Promise<DueCheckIn[]> {
-    const today = new Date().toISOString().split('T')[0]!;
-    const allGoals = await db.query.goals.findMany();
-    const due: DueCheckIn[] = [];
+  async function triggerCheckIn(checkInId: string, goalId: string, purpose: string, hint: string) {
+    const goal = await db.query.goals.findFirst({ where: eq(goals.id, goalId) });
+    if (!goal) return;
 
-    for (const goal of allGoals) {
-      if (!goal.active || goal.status === 'completed' || goal.status === 'missed') continue;
-
-      const livePlan = await goalRepo.getLivePlan(goal.id);
-      if (!livePlan || !livePlan.steps.length) continue;
-
-      const existingCheckpoints = await goalRepo.getCheckpointsByGoal(goal.id);
-      const checkedPeriods = new Set(
-        existingCheckpoints.map((cp) => `${cp.periodStart}_${cp.periodEnd}`),
-      );
-
-      for (const step of livePlan.steps) {
-        if (!step.endDate || step.endDate > today) continue;
-        const key = `${step.startDate}_${step.endDate}`;
-        if (checkedPeriods.has(key)) continue;
-
-        due.push({
-          userId: goal.userId,
-          goalId: goal.id,
-          goalTitle: goal.title,
-          step,
-        });
-        break; // One check-in per goal at a time
-      }
-    }
-
-    return due;
-  }
-
-  async function triggerCheckIn(checkIn: DueCheckIn): Promise<string> {
-    const thread = await threadRepo.create(checkIn.userId);
+    const thread = await threadRepo.create(goal.userId);
 
     const prompt =
-      `[CHECK-IN] Time to check in on goal "${checkIn.goalTitle}". ` +
-      `The period "${checkIn.step.title}" (${checkIn.step.startDate} to ${checkIn.step.endDate}) has ended. ` +
-      `Target was: ${checkIn.step.target}. ` +
-      `Ask the user how they did during this period and log the checkpoint based on their response.`;
+      `[CHECK-IN: ${purpose}] ` +
+      `Goal: "${goal.title}" (${goal.id}). ` +
+      `${hint}`;
 
     const config = { configurable: { thread_id: thread.id }, recursionLimit: 50 };
     const result = await agent.invoke({ messages: [new HumanMessage(prompt)] }, config);
@@ -90,41 +46,58 @@ export function createScheduler({
     }
 
     if (text) {
-      await transport.sendMessage(checkIn.userId, text);
+      await transport.sendMessage(goal.userId, text);
     }
 
-    onCheckInStarted?.(checkIn.userId, thread.id);
-
-    return thread.id;
+    onCheckInStarted?.(goal.userId, thread.id);
   }
 
-  async function tick() {
-    try {
-      const dueCheckIns = await findDueCheckIns();
-      for (const checkIn of dueCheckIns) {
-        await triggerCheckIn(checkIn);
-      }
-    } catch (err) {
-      console.error('[scheduler] Error:', err instanceof Error ? err.message : err);
+  function registerJob(checkIn: { id: string; goalId: string; schedule: string; purpose: string; hint: string }) {
+    if (jobs.has(checkIn.id)) {
+      jobs.get(checkIn.id)!.stop();
+    }
+
+    if (!cron.validate(checkIn.schedule)) {
+      console.error(`[scheduler] Invalid cron expression for check-in ${checkIn.id}: "${checkIn.schedule}"`);
+      return;
+    }
+
+    const task = cron.schedule(checkIn.schedule, () => {
+      triggerCheckIn(checkIn.id, checkIn.goalId, checkIn.purpose, checkIn.hint).catch((err) => {
+        console.error(`[scheduler] Error triggering check-in ${checkIn.id}:`, err instanceof Error ? err.message : err);
+      });
+    });
+
+    jobs.set(checkIn.id, task);
+    console.log(`[scheduler] Registered: "${checkIn.purpose}" (${checkIn.schedule})`);
+  }
+
+  function unregisterJob(checkInId: string) {
+    const task = jobs.get(checkInId);
+    if (task) {
+      task.stop();
+      jobs.delete(checkInId);
     }
   }
 
   return {
-    start() {
-      console.log(`[scheduler] Started (checking every ${intervalMs / 1000}s)`);
-      tick();
-      timer = setInterval(tick, intervalMs);
+    async start() {
+      const activeCheckIns = await checkInRepo.getAllActive();
+      for (const checkIn of activeCheckIns) {
+        registerJob(checkIn);
+      }
+      console.log(`[scheduler] Started with ${activeCheckIns.length} active check-in(s)`);
     },
 
     stop() {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-        console.log('[scheduler] Stopped');
+      for (const [id, task] of jobs) {
+        task.stop();
+        jobs.delete(id);
       }
+      console.log('[scheduler] Stopped');
     },
 
-    findDueCheckIns,
-    triggerCheckIn,
+    registerJob,
+    unregisterJob,
   };
 }

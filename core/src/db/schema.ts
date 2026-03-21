@@ -48,6 +48,18 @@ export interface PlanStep {
   endDate: string;
 }
 
+export const scheduledCheckIns = pgTable('scheduled_check_ins', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  goalId: uuid('goal_id')
+    .notNull()
+    .references(() => goals.id),
+  schedule: text('schedule').notNull(),
+  purpose: text('purpose').notNull(),
+  hint: text('hint').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const checkpoints = pgTable('goal_checkpoints', {
   id: uuid('id').defaultRandom().primaryKey(),
   goalId: uuid('goal_id')

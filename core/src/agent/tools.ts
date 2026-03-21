@@ -2,6 +2,7 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import type { Db } from '../db/index.js';
 import { createGoalRepository } from '../db/goals.js';
+import { createCheckInRepository } from '../db/checkins.js';
 
 const planStepSchema = z.object({
   order: z.number().describe('Step order (1, 2, 3...)'),
@@ -13,6 +14,7 @@ const planStepSchema = z.object({
 
 export function createAgentTools(db: Db, userId: string) {
   const goalRepo = createGoalRepository(db);
+  const checkInRepo = createCheckInRepository(db);
 
   const createGoal = tool(
     async ({ title, description, startDate, targetDate }) => {
@@ -60,7 +62,8 @@ export function createAgentTools(db: Db, userId: string) {
     },
     {
       name: 'adjust_plan',
-      description: 'Adjust an existing plan by creating a new version with updated steps. The old version is preserved for history. Use after a retro or when circumstances change.',
+      description:
+        'Adjust an existing plan by creating a new version with updated steps. The old version is preserved for history. Use after a retro or when circumstances change.',
       schema: z.object({
         planId: z.string().describe('ID of the current live plan to adjust'),
         steps: z.array(planStepSchema).describe('Updated list of plan steps'),
@@ -131,5 +134,91 @@ export function createAgentTools(db: Db, userId: string) {
     },
   );
 
-  return [createGoal, createPlan, adjustPlan, updateGoalStatus, getGoals, logCheckpoint];
+  const createCheckIn = tool(
+    async ({ goalId, schedule, purpose, hint }) => {
+      const checkIn = await checkInRepo.create(goalId, schedule, purpose, hint);
+      return JSON.stringify(checkIn);
+    },
+    {
+      name: 'create_check_in',
+      description:
+        'Schedule a recurring check-in for a goal. The check-in will fire on the cron schedule and prompt the user. ' +
+        'Use this after creating a plan to set up the right check-in cadence. ' +
+        'You can create multiple check-ins per goal with different cadences and purposes (e.g., daily logging + weekly retro).',
+      schema: z.object({
+        goalId: z.string().describe('ID of the goal'),
+        schedule: z
+          .string()
+          .describe(
+            'Cron expression for when to check in. Examples: "0 18 * * 1-5" (weekdays 6pm), "0 9 * * 0" (Sundays 9am), "0 9 8-14 * 1" (2nd Monday of month)',
+          ),
+        purpose: z.string().describe('Short label (e.g. "Daily hours log", "Weekly retro")'),
+        hint: z
+          .string()
+          .describe(
+            'Instructions for yourself on what to do during this check-in. Be specific about what to ask and what data to log.',
+          ),
+      }),
+    },
+  );
+
+  const listCheckIns = tool(
+    async ({ goalId }) => {
+      const checkIns = await checkInRepo.getByGoal(goalId);
+      if (checkIns.length === 0) return 'No check-ins scheduled for this goal.';
+      return JSON.stringify(checkIns, null, 2);
+    },
+    {
+      name: 'list_check_ins',
+      description: 'List all scheduled check-ins for a goal.',
+      schema: z.object({
+        goalId: z.string().describe('ID of the goal'),
+      }),
+    },
+  );
+
+  const updateCheckIn = tool(
+    async ({ checkInId, schedule, purpose, hint, active }) => {
+      const updated = await checkInRepo.update(checkInId, { schedule, purpose, hint, active });
+      return JSON.stringify(updated);
+    },
+    {
+      name: 'update_check_in',
+      description: 'Update a scheduled check-in. Can change the schedule, purpose, hint, or pause/resume it.',
+      schema: z.object({
+        checkInId: z.string().describe('ID of the check-in to update'),
+        schedule: z.string().optional().describe('New cron expression'),
+        purpose: z.string().optional().describe('New purpose label'),
+        hint: z.string().optional().describe('New hint/instructions'),
+        active: z.boolean().optional().describe('Set to false to pause, true to resume'),
+      }),
+    },
+  );
+
+  const deleteCheckIn = tool(
+    async ({ checkInId }) => {
+      const deleted = await checkInRepo.remove(checkInId);
+      return deleted ? 'Deleted.' : 'Not found.';
+    },
+    {
+      name: 'delete_check_in',
+      description: 'Delete a scheduled check-in.',
+      schema: z.object({
+        checkInId: z.string().describe('ID of the check-in to delete'),
+      }),
+    },
+  );
+
+  return [
+    createGoal,
+    createPlan,
+    adjustPlan,
+    updateGoalStatus,
+    getGoals,
+    logCheckpoint,
+    createCheckIn,
+    listCheckIns,
+    updateCheckIn,
+    deleteCheckIn,
+  ];
 }

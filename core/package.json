@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.12.0",
+    "@types/node-cron": "^3.0.11",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^10.0.0",
@@ -26,6 +27,7 @@
     "@langchain/langgraph": "^1.2.4",
     "@langchain/langgraph-checkpoint-postgres": "^1.0.1",
     "drizzle-orm": "^0.45.1",
+    "node-cron": "^4.2.1",
     "postgres": "^3.4.8"
   }
 }
