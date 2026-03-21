@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, date, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, date, boolean, jsonb } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -14,47 +14,45 @@ export const threads = pgTable('threads', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const visions = pgTable('visions', {
+export const goals = pgTable('goals', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id')
     .notNull()
     .references(() => users.id),
   title: text('title').notNull(),
   description: text('description'),
-  status: text('status').notNull().default('active'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
-export const milestones = pgTable('milestones', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  visionId: uuid('vision_id')
-    .notNull()
-    .references(() => visions.id),
-  title: text('title').notNull(),
+  startDate: date('start_date'),
   targetDate: date('target_date'),
+  active: boolean('active').notNull().default(true),
+  status: text('status').notNull().default('not_started'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const plans = pgTable('plans', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  goalId: uuid('goal_id')
+    .notNull()
+    .references(() => goals.id),
+  description: text('description'),
+  steps: jsonb('steps').$type<PlanStep[]>().notNull().default([]),
   status: text('status').notNull().default('active'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const weeklyStrategies = pgTable('weekly_strategies', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  milestoneId: uuid('milestone_id')
-    .notNull()
-    .references(() => milestones.id),
-  title: text('title').notNull(),
-  weekStart: date('week_start'),
-  status: text('status').notNull().default('active'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+export interface PlanStep {
+  order: number;
+  title: string;
+  target: string;
+}
 
-export const dailyTasks = pgTable('daily_tasks', {
+export const checkpoints = pgTable('checkpoints', {
   id: uuid('id').defaultRandom().primaryKey(),
-  strategyId: uuid('strategy_id')
+  goalId: uuid('goal_id')
     .notNull()
-    .references(() => weeklyStrategies.id),
-  title: text('title').notNull(),
-  scheduledDate: date('scheduled_date'),
-  completed: boolean('completed').notNull().default(false),
-  reflection: text('reflection'),
+    .references(() => goals.id),
+  periodStart: date('period_start').notNull(),
+  periodEnd: date('period_end').notNull(),
+  status: text('status').notNull().default('not_completed'),
+  data: jsonb('data').$type<Record<string, unknown>>(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });

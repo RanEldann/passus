@@ -3,88 +3,131 @@ import { z } from 'zod';
 import type { Db } from '../db/index.js';
 import { createGoalRepository } from '../db/goals.js';
 
+const planStepSchema = z.object({
+  order: z.number().describe('Step order (1, 2, 3...)'),
+  title: z.string().describe('Period label (e.g. "Week 1", "Month 1", "Day 1")'),
+  target: z.string().describe('What to achieve in this period'),
+});
+
 export function createAgentTools(db: Db, userId: string) {
   const goalRepo = createGoalRepository(db);
 
-  const createVision = tool(
-    async ({ title, description }) => {
-      const vision = await goalRepo.createVision(userId, title, description);
-      return JSON.stringify(vision);
+  const createGoal = tool(
+    async ({ title, description, startDate, targetDate }) => {
+      const goal = await goalRepo.createGoal(userId, title, {
+        description,
+        startDate,
+        targetDate,
+      });
+      return JSON.stringify(goal);
     },
     {
-      name: 'create_vision',
+      name: 'create_goal',
       description:
-        'Create a new high-level vision/goal for the user. Use this after understanding what the user wants to achieve.',
+        'Create a specific, measurable goal for the user. Use after helping them refine a vague vision into something concrete with a target date.',
       schema: z.object({
-        title: z.string().describe('Short title for the vision'),
-        description: z.string().optional().describe('Detailed description of the vision'),
-      }),
-    },
-  );
-
-  const createMilestone = tool(
-    async ({ visionId, title, targetDate }) => {
-      const milestone = await goalRepo.createMilestone(visionId, title, targetDate);
-      return JSON.stringify(milestone);
-    },
-    {
-      name: 'create_milestone',
-      description:
-        'Create a milestone under a vision. Milestones are major checkpoints on the way to achieving the vision.',
-      schema: z.object({
-        visionId: z.string().describe('ID of the parent vision'),
-        title: z.string().describe('Short title for the milestone'),
+        title: z.string().describe('Specific goal title (e.g. "Run a marathon in under 4 hours")'),
+        description: z.string().optional().describe('Additional context about the goal'),
+        startDate: z.string().optional().describe('Start date in YYYY-MM-DD format'),
         targetDate: z.string().optional().describe('Target date in YYYY-MM-DD format'),
       }),
     },
   );
 
-  const createWeeklyStrategy = tool(
-    async ({ milestoneId, title, weekStart }) => {
-      const strategy = await goalRepo.createWeeklyStrategy(milestoneId, title, weekStart);
-      return JSON.stringify(strategy);
+  const createPlan = tool(
+    async ({ goalId, description, steps }) => {
+      const plan = await goalRepo.createPlan(goalId, description, steps);
+      return JSON.stringify(plan);
     },
     {
-      name: 'create_weekly_strategy',
+      name: 'create_plan',
       description:
-        'Create a weekly strategy under a milestone. These are specific weekly focuses that drive milestone progress.',
+        'Create a plan for a goal. The plan has steps with a cadence appropriate to the goal (weekly, monthly, etc).',
       schema: z.object({
-        milestoneId: z.string().describe('ID of the parent milestone'),
-        title: z.string().describe('What to focus on this week'),
-        weekStart: z.string().optional().describe('Week start date in YYYY-MM-DD format'),
+        goalId: z.string().describe('ID of the goal this plan is for'),
+        description: z.string().describe('Overview of the plan approach'),
+        steps: z.array(planStepSchema).describe('Ordered list of plan steps'),
       }),
     },
   );
 
-  const createDailyTask = tool(
-    async ({ strategyId, title, scheduledDate }) => {
-      const task = await goalRepo.createDailyTask(strategyId, title, scheduledDate);
-      return JSON.stringify(task);
+  const adjustPlan = tool(
+    async ({ planId, steps }) => {
+      const plan = await goalRepo.updatePlanSteps(planId, steps);
+      return JSON.stringify(plan);
     },
     {
-      name: 'create_daily_task',
-      description:
-        'Create a daily task under a weekly strategy. These are concrete actions the user should do on a specific day.',
+      name: 'adjust_plan',
+      description: 'Adjust an existing plan by updating its steps. Use after a retro or when circumstances change.',
       schema: z.object({
-        strategyId: z.string().describe('ID of the parent weekly strategy'),
-        title: z.string().describe('What to do'),
-        scheduledDate: z.string().optional().describe('Scheduled date in YYYY-MM-DD format'),
+        planId: z.string().describe('ID of the plan to adjust'),
+        steps: z.array(planStepSchema).describe('Updated list of plan steps'),
+      }),
+    },
+  );
+
+  const updateGoalStatus = tool(
+    async ({ goalId, status }) => {
+      const goal = await goalRepo.updateGoalStatus(goalId, status);
+      return JSON.stringify(goal);
+    },
+    {
+      name: 'update_goal_status',
+      description: 'Update the status of a goal.',
+      schema: z.object({
+        goalId: z.string().describe('ID of the goal'),
+        status: z
+          .enum(['not_started', 'on_track', 'at_risk', 'completed', 'missed', 'profited'])
+          .describe('New status'),
       }),
     },
   );
 
   const getGoals = tool(
     async () => {
-      const plan = await goalRepo.getFullPlan(userId);
-      if (plan.length === 0) return 'No goals yet.';
-      return JSON.stringify(plan, null, 2);
+      const userGoals = await goalRepo.getGoalsByUser(userId);
+      if (userGoals.length === 0) return 'No goals yet.';
+      const fullGoals = await Promise.all(
+        userGoals.map((g) => goalRepo.getFullGoal(g.id)),
+      );
+      return JSON.stringify(fullGoals, null, 2);
     },
     {
       name: 'get_goals',
-      description: "Get the user's current goals and full fractal plan.",
+      description: "Get all of the user's goals with their plans and checkpoints.",
       schema: z.object({}),
     },
   );
 
-  return [createVision, createMilestone, createWeeklyStrategy, createDailyTask, getGoals];
+  const logCheckpoint = tool(
+    async ({ goalId, periodStart, periodEnd, status, data }) => {
+      const checkpoint = await goalRepo.createCheckpoint(
+        goalId,
+        periodStart,
+        periodEnd,
+        status,
+        data,
+      );
+      return JSON.stringify(checkpoint);
+    },
+    {
+      name: 'log_checkpoint',
+      description:
+        'Log a checkpoint for a goal. Records what the user achieved in a specific period.',
+      schema: z.object({
+        goalId: z.string().describe('ID of the goal'),
+        periodStart: z.string().describe('Period start date in YYYY-MM-DD format'),
+        periodEnd: z.string().describe('Period end date in YYYY-MM-DD format'),
+        status: z
+          .enum(['completed', 'not_completed', 'completed_partially'])
+          .describe('How the user did in this period'),
+        data: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .describe('Progress data (e.g. { "distance_km": 10, "runs": 3 })'),
+      }),
+    },
+  );
+
+  return [createGoal, createPlan, adjustPlan, updateGoalStatus, getGoals, logCheckpoint];
 }

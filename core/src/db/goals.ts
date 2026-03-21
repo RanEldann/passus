@@ -1,72 +1,86 @@
 import { eq } from 'drizzle-orm';
 import type { Db } from './index.js';
-import { visions, milestones, weeklyStrategies, dailyTasks } from './schema.js';
+import { goals, plans, checkpoints } from './schema.js';
+import type { PlanStep } from './schema.js';
 
 export function createGoalRepository(db: Db) {
   return {
-    async createVision(userId: string, title: string, description?: string) {
-      const [vision] = await db.insert(visions).values({ userId, title, description }).returning();
-      return vision;
-    },
-
-    async createMilestone(visionId: string, title: string, targetDate?: string) {
-      const [milestone] = await db
-        .insert(milestones)
-        .values({ visionId, title, targetDate })
+    async createGoal(
+      userId: string,
+      title: string,
+      opts?: { description?: string; startDate?: string; targetDate?: string },
+    ) {
+      const [goal] = await db
+        .insert(goals)
+        .values({ userId, title, ...opts })
         .returning();
-      return milestone;
+      return goal;
     },
 
-    async createWeeklyStrategy(milestoneId: string, title: string, weekStart?: string) {
-      const [strategy] = await db
-        .insert(weeklyStrategies)
-        .values({ milestoneId, title, weekStart })
+    async updateGoalStatus(goalId: string, status: string) {
+      const [goal] = await db
+        .update(goals)
+        .set({ status })
+        .where(eq(goals.id, goalId))
         .returning();
-      return strategy;
+      return goal;
     },
 
-    async createDailyTask(strategyId: string, title: string, scheduledDate?: string) {
-      const [task] = await db
-        .insert(dailyTasks)
-        .values({ strategyId, title, scheduledDate })
+    async getGoalsByUser(userId: string) {
+      return db.query.goals.findMany({ where: eq(goals.userId, userId) });
+    },
+
+    async getGoalById(goalId: string) {
+      return db.query.goals.findFirst({ where: eq(goals.id, goalId) });
+    },
+
+    async createPlan(goalId: string, description: string, steps: PlanStep[]) {
+      const [plan] = await db
+        .insert(plans)
+        .values({ goalId, description, steps })
         .returning();
-      return task;
-    },
-
-    async getVisionsByUser(userId: string) {
-      return db.query.visions.findMany({ where: eq(visions.userId, userId) });
-    },
-
-    async getFullPlan(userId: string) {
-      const userVisions = await db.query.visions.findMany({
-        where: eq(visions.userId, userId),
-      });
-
-      const plan = [];
-      for (const vision of userVisions) {
-        const ms = await db.query.milestones.findMany({
-          where: eq(milestones.visionId, vision.id),
-        });
-
-        const milestonesWithDetails = [];
-        for (const m of ms) {
-          const strategies = await db.query.weeklyStrategies.findMany({
-            where: eq(weeklyStrategies.milestoneId, m.id),
-          });
-
-          const strategiesWithTasks = [];
-          for (const s of strategies) {
-            const tasks = await db.query.dailyTasks.findMany({
-              where: eq(dailyTasks.strategyId, s.id),
-            });
-            strategiesWithTasks.push({ ...s, tasks });
-          }
-          milestonesWithDetails.push({ ...m, strategies: strategiesWithTasks });
-        }
-        plan.push({ ...vision, milestones: milestonesWithDetails });
-      }
-
       return plan;
+    },
+
+    async updatePlanSteps(planId: string, steps: PlanStep[]) {
+      const [plan] = await db
+        .update(plans)
+        .set({ steps })
+        .where(eq(plans.id, planId))
+        .returning();
+      return plan;
+    },
+
+    async getPlansByGoal(goalId: string) {
+      return db.query.plans.findMany({ where: eq(plans.goalId, goalId) });
+    },
+
+    async createCheckpoint(
+      goalId: string,
+      periodStart: string,
+      periodEnd: string,
+      status: string,
+      data?: Record<string, unknown>,
+    ) {
+      const [checkpoint] = await db
+        .insert(checkpoints)
+        .values({ goalId, periodStart, periodEnd, status, data })
+        .returning();
+      return checkpoint;
+    },
+
+    async getCheckpointsByGoal(goalId: string) {
+      return db.query.checkpoints.findMany({ where: eq(checkpoints.goalId, goalId) });
+    },
+
+    async getFullGoal(goalId: string) {
+      const goal = await db.query.goals.findFirst({ where: eq(goals.id, goalId) });
+      if (!goal) return null;
+      const goalPlans = await db.query.plans.findMany({ where: eq(plans.goalId, goalId) });
+      const goalCheckpoints = await db.query.checkpoints.findMany({
+        where: eq(checkpoints.goalId, goalId),
+      });
+      return { ...goal, plans: goalPlans, checkpoints: goalCheckpoints };
     },
   };
 }
